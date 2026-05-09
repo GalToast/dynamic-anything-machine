@@ -1,0 +1,51 @@
+[project]
+name = "dynamic-graph-compiler"
+version = "0.1.0"
+description = "Policy-constrained dynamic agent graph compiler with child request/approval protocol and run replay"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Fred", email = "fred@example.com" }
+]
+keywords = ["agent", "graph", "compiler", "workflow", "policy", "langgraph"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "langgraph>=0.2.0",
+    "openai>=1.0.0",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0.0",
+    "aiofiles>=23.0.0",
+    "jsonschema>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

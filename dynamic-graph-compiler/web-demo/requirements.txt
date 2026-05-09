@@ -1,0 +1,7 @@
+flask>=3.0
+flask-cors>=4.0
+langgraph>=0.2
+langchain-core>=0.3
+pydantic>=2.0
+aiofiles>=23.0
+urllib3>=2.0

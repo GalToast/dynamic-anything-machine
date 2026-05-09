@@ -1,0 +1,24 @@
+{
+  "$schema": "https://railway.app/schema/v1/config.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "sleepApplication": false,
+    "restartPolicyType": "ON_FAILURE",
+    "restartThreshold": 5
+  },
+  "env": {
+    "PORT": {
+      "value": "5000"
+    }
+  },
+  "variables": {
+    "ANTHROPIC_AUTH_TOKEN": {
+      "description": "MiniMax/Anthropic API token for LLM calls",
+      "required": false
+    }
+  }
+}

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DynamicAnythingMachine — LangGraph Observatory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230d0f12' width='100' height='100' rx='20'/><circle cx='50' cy='50' r='25' fill='none' stroke='%2300d4ff' stroke-width='4'/><circle cx='50' cy='50' r='8' fill='%23ff6b35'/></svg>">
+</head>
+<body>
+    <!-- Animated gradient background -->
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+
+    <div class="app-shell">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-brand">
+                <div class="header-logo">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="header-title">DynamicAnythingMachine</div>
+                    <div class="header-subtitle">Recursive Research Orchestra</div>
+                </div>
+            </div>
+            <div class="header-status">
+                <div class="status-indicator">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Ready</span>
+                </div>
+                <div class="minimax-badge">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="12" cy="12" r="10" fill-opacity="0.2"/>
+                        <circle cx="12" cy="12" r="4"/>
+                    </svg>
+                    Powered by MiniMax M2.7
+                </div>
+            </div>
+        </header>
+
+        <!-- Left Sidebar — Goal Input -->
+        <aside class="sidebar-left">
+            <div class="hero-section">
+                <h1 class="hero-title">What would you like to explore?</h1>
+                <p class="hero-subtitle">Describe your objective and watch AI agents collaborate to deliver structured insights</p>
+            </div>
+
+            <div class="goal-input-section">
+                <label class="goal-label" for="goalTextarea">Your Goal</label>
+                <textarea
+                    id="goalTextarea"
+                    class="goal-textarea"
+                    placeholder="e.g., Research the latest advances in LLM fine-tuning techniques and create a comprehensive report"
+                    rows="5"
+                ></textarea>
+            </div>
+
+            <div class="preset-section">
+                <div class="preset-label">Quick Start</div>
+                <div class="preset-chips">
+                    <button class="preset-chip" data-goal="Research the latest advances in LLM fine-tuning techniques">
+                        <span class="chip-icon">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                            </svg>
+                        </span>
+                        Research LLM fine-tuning
+                    </button>
+                    <button class="preset-chip" data-goal="Build a REST API with authentication and pagination">
+                        <span class="chip-icon">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+                            </svg>
+                        </span>
+                        Build a REST API
+                    </button>
+                    <button class="preset-chip" data-goal="Survey quantum computing trends in 2026">
+                        <span class="chip-icon">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                            </svg>
+                        </span>
+                        Quantum computing survey
+                    </button>
+                    <button class="preset-chip" data-goal="Create a business plan for an AI-powered SaaS product">
+                        <span class="chip-icon">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                            </svg>
+                        </span>
+                        SaaS business plan
+                    </button>
+                    <button class="preset-chip" data-goal="Analyze the latest AI research papers from arXiv">
+                        <span class="chip-icon">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                            </svg>
+                        </span>
+                        Analyze AI papers
+                    </button>
+                </div>
+            </div>
+
+            <div class="mode-section">
+                <span class="mode-label">Mode:</span>
+                <div class="mode-buttons">
+                    <button class="mode-btn selected" data-mode="research">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                        </svg>
+                        Research
+                    </button>
+                    <button class="mode-btn" data-mode="build">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+                        </svg>
+                        Build
+                    </button>
+                </div>
+            </div>
+
+            <div class="run-section">
+                <button class="run-btn" id="runBtn">
+                    <span class="run-btn-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                    </span>
+                    <span id="runBtnText">Run Orchestration</span>
+                </button>
+            </div>
+
+            <div class="run-info" id="runInfo" style="display: none;">
+                <div class="run-info-row">
+                    <span class="run-info-label">Run ID</span>
+                    <span class="run-info-value" id="runIdDisplay">-</span>
+                </div>
+                <div class="run-info-row">
+                    <span class="run-info-label">Phase</span>
+                    <span class="run-info-value" id="phaseDisplay">-</span>
+                </div>
+                <div class="run-info-row">
+                    <span class="run-info-label">Active Nodes</span>
+                    <span class="run-info-value" id="activeNodesDisplay">-</span>
+                </div>
+                <div class="run-info-row">
+                    <span class="run-info-label">Progress</span>
+                    <span class="run-info-value" id="progressDisplay">-</span>
+                </div>
+                <div class="run-info-row">
+                    <span class="run-info-label">ETA</span>
+                    <span class="run-info-value" id="etaDisplay">-</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-area" id="mainArea">
+            <!-- Empty state when no run -->
+            <div class="empty-state" id="emptyState">
+                <div class="empty-state-visual">
+                    <div class="orbit-ring">
+                        <div class="orbit-dot"></div>
+                    </div>
+                    <div class="empty-state-icon">
+                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                            <path d="M2 17l10 5 10-5"/>
+                            <path d="M2 12l10 5 10-5"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="empty-state-title">LangGraph Observatory</div>
+                <div class="empty-state-subtitle">Enter a goal and click Run to see the dynamic orchestrator in action</div>
+
+                <!-- How it works -->
+                <div class="how-it-works">
+                    <div class="how-step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <div class="step-title">Enter goal</div>
+                            <div class="step-desc">Describe what you want to explore</div>
+                        </div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="how-step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <div class="step-title">Watch agents execute</div>
+                            <div class="step-desc">AI agents collaborate in real-time</div>
+                        </div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="how-step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <div class="step-title">Get structured report</div>
+                            <div class="step-desc">Receive comprehensive findings</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active run content -->
+            <div id="runContent" style="display: none; flex-direction: column; overflow: hidden; flex: 1;">
+                <!-- Loading skeleton -->
+                <div class="loading-skeleton" id="loadingSkeleton" style="display: none;">
+                    <div class="skeleton-bar"></div>
+                    <div class="skeleton-graph">
+                        <div class="skeleton-node"></div>
+                        <div class="skeleton-node"></div>
+                        <div class="skeleton-node"></div>
+                    </div>
+                    <div class="skeleton-output"></div>
+                </div>
+
+                <!-- Phase progress bar -->
+                <div class="phase-bar" id="phaseBar">
+                    <div class="phase-step" id="phase1Step">
+                        <span class="phase-step-num">1</span>
+                        <span>Analysis</span>
+                    </div>
+                    <div class="phase-connector" id="connector1"></div>
+                    <div class="phase-step" id="phase2Step">
+                        <span class="phase-step-num">2</span>
+                        <span>Execution</span>
+                    </div>
+                    <div class="phase-connector" id="connector2"></div>
+                    <div class="phase-step" id="phase3Step">
+                        <span class="phase-step-num">3</span>
+                        <span>Synthesis</span>
+                    </div>
+                </div>
+
+                <!-- Graph visualization -->
+                <div class="graph-panel" id="graphPanel">
+                    <div class="graph-canvas" id="graphCanvas">
+                        <svg class="edge-layer" id="edgeLayer"></svg>
+                        <!-- Nodes will be dynamically positioned here -->
+                    </div>
+                </div>
+
+                <!-- Streaming output -->
+                <div class="output-panel">
+                    <div class="output-header">
+                        <div class="output-title" id="outputTitle">
+                            <span class="live-dot"></span>
+                            Streaming Output
+                        </div>
+                        <div class="output-meta" id="outputMeta"></div>
+                        <div class="output-actions">
+                            <button class="action-btn" id="copyOutputBtn" disabled>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                                </svg>
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <div class="output-content" id="outputContent">
+                        <div class="output-empty">Output will appear here as tokens are streamed...</div>
+                    </div>
+                </div>
+
+                <!-- Final output -->
+                <div class="final-output-section" id="finalOutputSection" style="display: none;">
+                    <div class="final-output-header">
+                        <span class="final-output-title">Final Report</span>
+                        <div class="report-meta" id="reportMeta"></div>
+                        <div class="output-actions">
+                            <button class="action-btn" id="copyFinalBtn" disabled>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                                </svg>
+                                Copy
+                            </button>
+                            <button class="action-btn" id="downloadAuditBtn" disabled>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Audit Trail
+                            </button>
+                            <button class="action-btn" id="downloadArtifactsBtn" disabled>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Download Artifacts
+                            </button>
+                        </div>
+                    </div>
+                    <div class="final-output-content" id="finalOutputContent">
+                        <div class="final-output-document" id="finalOutputDoc"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Sidebar — Audit Trail -->
+        <aside class="sidebar-right">
+            <div class="panel-header">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                Audit Trail
+                <span class="count" id="auditCount">0</span>
+            </div>
+
+            <div class="audit-panel">
+                <div class="audit-timeline" id="auditTimeline">
+                    <div class="audit-event phase-start" id="auditIntro">
+                        <span class="audit-time">--:--:--</span>
+                        <span class="audit-type">READY</span>
+                        <span class="audit-detail">Awaiting execution</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-header" id="fileTreeHeader" style="border-top: 1px solid var(--border-subtle); display: none;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+                </svg>
+                Created Files
+                <span class="count" id="fileCount">0</span>
+            </div>
+            <div id="fileTreePanel" style="display: none; max-height: 180px; overflow-y: auto; padding: 0 16px;">
+                <ul id="fileTree" style="list-style: none; padding: 0; margin: 0; font-size: 11px; font-family: var(--font-mono);"></ul>
+            </div>
+
+            <div class="panel-header" style="border-top: 1px solid var(--border-subtle); margin-top: auto;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+                </svg>
+                Run History
+            </div>
+            <div id="runHistory" style="padding: 8px 16px; max-height: 150px; overflow-y: auto;">
+                <div style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 8px;">No previous runs</div>
+            </div>
+
+            <!-- Footer -->
+            <div class="sidebar-footer">
+                <a href="https://github.com" class="footer-link" target="_blank">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    View on GitHub
+                </a>
+                <a href="#" class="footer-link" onclick="alert('Architecture: DynamicAnythingMachine uses LangGraph to orchestrate recursive research with specialized agents for analysis, execution, and synthesis.'); return false;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    Architecture
+                </a>
+            </div>
+        </aside>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

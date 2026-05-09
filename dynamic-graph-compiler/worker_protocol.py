@@ -1,0 +1,1121 @@
+"""
+Worker Protocol — file-based delegation harness for dynamic-graph-compiler.
+
+This module implements a file-based worker protocol that is impartial to the
+execution harness (subagent, parallel process, etc.). It defines the on-disk
+layout for runs and provides a synchronous and asynchronous API for emitting
+packets, recording results, and tracking run state.
+
+Run Directory Structure
+----------------------
+runs/<run_id>/
+  graph_spec.json        — GraphSpec for this run
+  manifest.json          — RunManifest tracking status and aggregates
+  packets/
+    <worker_id>.json     — WorkerPacket dispatched to a worker
+    <worker_id>.md       — Human-readable markdown version of the packet
+  results/
+    <worker_id>.json     — WorkerResult returned by a completed worker
+  events.jsonl           — Append-only JSON lines log of run events
+  final.md               — Final summary written by the orchestrator
+  checkpoints/
+    <checkpoint_id>.json — Serializable checkpoint state
+
+Classes
+-------
+PacketEmitter : Write packets, results, events, checkpoints, and final output.
+PacketReader  : Read back all written artefacts.
+PacketBuilder : Convert GraphNode -> WorkerPacket and WorkerPacket -> WorkerResult.
+ChildRequest  : Derive a constrained child WorkerPacket from a parent packet.
+"""
+
+from __future__ import annotations
+
+import json
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
+import aiofiles
+
+from dynamic_schema import (
+    DelegationPermission,
+    DifficultyLevel,
+    GraphNode,
+    GraphSpec,
+    NodeType,
+    RunManifest,
+    RunStatus,
+    WorkerPacket,
+    WorkerResult,
+    WorkerStatus,
+    _now_iso,
+)
+try:
+    from policy import ProfilePolicy
+except Exception:  # noqa: BLE001  # policy.py has a pre-existing bug (NodeType.INPUT
+    # etc.) that prevents it from loading; provide a structural stand-in.
+    ProfilePolicy = None  # type: ignore
+
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+RUNS_DIR = Path("runs")
+
+
+# ---------------------------------------------------------------------------
+# Packet Emitter — write side of the protocol
+# ---------------------------------------------------------------------------
+
+
+class PacketEmitter:
+    """
+    Write side of the file-based worker protocol.
+
+    All file operations are mirrored with synchronous and ``aiofiles``-based
+    asynchronous counterparts (e.g. :meth:`emit_packet` / :meth:`emit_packet_async`).
+
+    Parameters
+    ----------
+    runs_dir : Path
+        Root directory under which run folders are created.
+        Defaults to ``runs`` in the current working directory.
+    """
+
+    def __init__(self, runs_dir: Path | str | None = None) -> None:
+        self.runs_dir = Path(runs_dir) if runs_dir else RUNS_DIR
+
+    # ------------------------------------------------------------------
+    # Directory helpers
+    # ------------------------------------------------------------------
+
+    def _run_dir(self, run_id: str) -> Path:
+        return self.runs_dir / run_id
+
+    def _packets_dir(self, run_id: str) -> Path:
+        return self._run_dir(run_id) / "packets"
+
+    def _results_dir(self, run_id: str) -> Path:
+        return self._run_dir(run_id) / "results"
+
+    def _checkpoints_dir(self, run_id: str) -> Path:
+        return self._run_dir(run_id) / "checkpoints"
+
+    # ------------------------------------------------------------------
+    # create_run
+    # ------------------------------------------------------------------
+
+    def create_run(
+        self, objective: str, profile: ProfilePolicy, seed: int | None = None
+    ) -> Tuple[str, RunManifest]:
+        """
+        Create a new run directory and write the graph spec.
+
+        Parameters
+        ----------
+        objective : str
+            High-level goal description used as the run's root task prompt.
+        profile : ProfilePolicy
+            Policy profile used to seed the root node's tool/path constraints.
+        seed : int | None
+            Optional deterministic seed. If omitted, a UUID-based int is used.
+
+        Returns
+        -------
+        Tuple[str, RunManifest]
+            ``(run_id, manifest)`` where ``run_id`` is the new run identifier
+            and ``manifest`` is the initial run manifest.
+        """
+        run_id = str(uuid.uuid4())
+        run_dir = self._run_dir(run_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "packets").mkdir()
+        (run_dir / "results").mkdir()
+        (run_dir / "checkpoints").mkdir()
+
+        # Build root GraphSpec
+        spec = GraphSpec(
+            run_id=run_id,
+            seed=seed if seed is not None else uuid.uuid4().int,
+            difficulty=DifficultyLevel.MODERATE,
+            shape_rationale="Auto-generated by create_run",
+            nodes=[
+                GraphNode(
+                    node_id="root",
+                    role=NodeType.WORKER,
+                    task_prompt=objective,
+                    allowed_tools=list(profile.allowed_tools) if profile.allowed_tools else [],
+                    forbidden_tools=list(profile.forbidden_tools) if profile.forbidden_tools else [],
+                    owned_paths=profile.allowed_paths,
+                    forbidden_paths=profile.forbidden_paths,
+                    budget=profile.metadata.get("budget"),
+                    delegation_permission=DelegationPermission.APPROVE,
+                    max_child_depth=profile.max_depth,
+                )
+            ],
+            edges=[],
+        )
+
+        graph_spec_path = run_dir / "graph_spec.json"
+        graph_spec_path.write_text(json.dumps(spec.to_dict(), indent=2), encoding="utf-8")
+
+        manifest = RunManifest(
+            run_id=run_id,
+            graph_spec_path=str(graph_spec_path),
+            status=RunStatus.RUNNING,
+        )
+        manifest_path = run_dir / "manifest.json"
+        manifest_path.write_text(
+            json.dumps(manifest.model_dump(mode="json"), indent=2), encoding="utf-8"
+        )
+
+        (run_dir / "events.jsonl").write_text("", encoding="utf-8")
+
+        return run_id, manifest
+
+    # ------------------------------------------------------------------
+    # emit_packet
+    # ------------------------------------------------------------------
+
+    def emit_packet(self, run_id: str, packet: WorkerPacket) -> None:
+        """
+        Write a WorkerPacket to the packets directory as JSON and Markdown.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+        packet : WorkerPacket
+            Packet to write.
+        """
+        packets_dir = self._packets_dir(run_id)
+        packets_dir.mkdir(parents=True, exist_ok=True)
+
+        json_path = packets_dir / f"{packet.worker_id}.json"
+        json_path.write_text(
+            json.dumps(packet.model_dump(mode="json"), indent=2), encoding="utf-8"
+        )
+
+        md_path = packets_dir / f"{packet.worker_id}.md"
+        md_path.write_text(self._packet_to_markdown(packet), encoding="utf-8")
+
+    async def emit_packet_async(self, run_id: str, packet: WorkerPacket) -> None:
+        """Asynchronous version of :meth:`emit_packet`."""
+        packets_dir = self._packets_dir(run_id)
+        packets_dir.mkdir(parents=True, exist_ok=True)
+
+        json_path = packets_dir / f"{packet.worker_id}.json"
+        async with aiofiles.open(json_path, "w", encoding="utf-8") as f:
+            await f.write(json.dumps(packet.model_dump(mode="json"), indent=2))
+
+        md_path = packets_dir / f"{packet.worker_id}.md"
+        async with aiofiles.open(md_path, "w", encoding="utf-8") as f:
+            await f.write(self._packet_to_markdown(packet))
+
+    # ------------------------------------------------------------------
+    # record_result
+    # ------------------------------------------------------------------
+
+    def record_result(self, run_id: str, result: WorkerResult) -> None:
+        """
+        Write a WorkerResult and append an event to the run log.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+        result : WorkerResult
+            Result to write.
+        """
+        results_dir = self._results_dir(run_id)
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+        result_path = results_dir / f"{result.worker_id}.json"
+        result_path.write_text(
+            json.dumps(result.model_dump(mode="json"), indent=2), encoding="utf-8"
+        )
+
+        self.append_event(
+            run_id,
+            "worker_result",
+            {
+                "worker_id": result.worker_id,
+                "status": result.status.value,
+                "duration_seconds": result.duration_seconds,
+                "cost_estimate": result.cost_estimate,
+            },
+        )
+
+    async def record_result_async(self, run_id: str, result: WorkerResult) -> None:
+        """Asynchronous version of :meth:`record_result`."""
+        results_dir = self._results_dir(run_id)
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+        result_path = results_dir / f"{result.worker_id}.json"
+        async with aiofiles.open(result_path, "w", encoding="utf-8") as f:
+            await f.write(json.dumps(result.model_dump(mode="json"), indent=2))
+
+        await self.append_event_async(
+            run_id,
+            "worker_result",
+            {
+                "worker_id": result.worker_id,
+                "status": result.status.value,
+                "duration_seconds": result.duration_seconds,
+                "cost_estimate": result.cost_estimate,
+            },
+        )
+
+    # ------------------------------------------------------------------
+    # append_event
+    # ------------------------------------------------------------------
+
+    def append_event(self, run_id: str, event_type: str, data: Dict[str, Any]) -> None:
+        """
+        Append a JSON line to the run's events log.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+        event_type : str
+            Event type name (e.g. ``"worker_result"``, ``"manifest_update"``).
+        data : Dict[str, Any]
+            Arbitrary event payload.
+        """
+        run_dir = self._run_dir(run_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        events_path = run_dir / "events.jsonl"
+
+        line = json.dumps(
+            {
+                "event_type": event_type,
+                "timestamp": _now_iso(),
+                "data": data,
+            },
+            indent=None,
+            ensure_ascii=False,
+        )
+        with open(events_path, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+
+    async def append_event_async(
+        self, run_id: str, event_type: str, data: Dict[str, Any]
+    ) -> None:
+        """Asynchronous version of :meth:`append_event`."""
+        run_dir = self._run_dir(run_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        events_path = run_dir / "events.jsonl"
+
+        line = json.dumps(
+            {
+                "event_type": event_type,
+                "timestamp": _now_iso(),
+                "data": data,
+            },
+            indent=None,
+            ensure_ascii=False,
+        )
+        async with aiofiles.open(events_path, "a", encoding="utf-8") as f:
+            await f.write(line + "\n")
+
+    # ------------------------------------------------------------------
+    # update_manifest
+    # ------------------------------------------------------------------
+
+    def update_manifest(self, run_id: str, updates: Dict[str, Any]) -> None:
+        """
+        Apply a partial update to the run manifest.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+        updates : Dict[str, Any]
+            Keys and values to merge into the existing manifest.
+        """
+        manifest = self.read_manifest(run_id)
+        manifest_data = manifest.model_dump(mode="json")
+        manifest_data.update(updates)
+        manifest_data["updated_at"] = _now_iso()
+
+        updated = RunManifest(**manifest_data)
+        manifest_path = self._run_dir(run_id) / "manifest.json"
+        manifest_path.write_text(
+            json.dumps(updated.model_dump(mode="json"), indent=2), encoding="utf-8"
+        )
+
+    async def update_manifest_async(self, run_id: str, updates: Dict[str, Any]) -> None:
+        """Asynchronous version of :meth:`update_manifest`."""
+        manifest = self.read_manifest(run_id)
+        manifest_data = manifest.model_dump(mode="json")
+        manifest_data.update(updates)
+        manifest_data["updated_at"] = _now_iso()
+
+        updated = RunManifest(**manifest_data)
+        manifest_path = self._run_dir(run_id) / "manifest.json"
+        async with aiofiles.open(manifest_path, "w", encoding="utf-8") as f:
+            await f.write(json.dumps(updated.model_dump(mode="json"), indent=2))
+
+    # ------------------------------------------------------------------
+    # write_final_md
+    # ------------------------------------------------------------------
+
+    def write_final_md(self, run_id: str, content: str) -> None:
+        """
+        Write the final summary markdown for a run.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+        content : str
+            Markdown content to write.
+        """
+        final_path = self._run_dir(run_id) / "final.md"
+        final_path.write_text(content, encoding="utf-8")
+
+    async def write_final_md_async(self, run_id: str, content: str) -> None:
+        """Asynchronous version of :meth:`write_final_md`."""
+        final_path = self._run_dir(run_id) / "final.md"
+        async with aiofiles.open(final_path, "w", encoding="utf-8") as f:
+            await f.write(content)
+
+    # ------------------------------------------------------------------
+    # create_checkpoint
+    # ------------------------------------------------------------------
+
+    def create_checkpoint(
+        self, run_id: str, state: Dict[str, Any], label: str
+    ) -> str:
+        """
+        Persist a checkpoint of the run's current state.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+        state : Dict[str, Any]
+            Arbitrary serializable state to checkpoint.
+        label : str
+            Human-readable label for this checkpoint.
+
+        Returns
+        -------
+        str
+            The generated ``checkpoint_id``.
+        """
+        checkpoint_id = str(uuid.uuid4())
+        checkpoints_dir = self._checkpoints_dir(run_id)
+        checkpoints_dir.mkdir(parents=True, exist_ok=True)
+
+        checkpoint_path = checkpoints_dir / f"{checkpoint_id}.json"
+        checkpoint_data = {
+            "checkpoint_id": checkpoint_id,
+            "run_id": run_id,
+            "label": label,
+            "timestamp": _now_iso(),
+            "state": state,
+        }
+        checkpoint_path.write_text(
+            json.dumps(checkpoint_data, indent=2), encoding="utf-8"
+        )
+
+        self.append_event(run_id, "checkpoint_created", {
+            "checkpoint_id": checkpoint_id,
+            "label": label,
+        })
+
+        return checkpoint_id
+
+    async def create_checkpoint_async(
+        self, run_id: str, state: Dict[str, Any], label: str
+    ) -> str:
+        """Asynchronous version of :meth:`create_checkpoint`."""
+        checkpoint_id = str(uuid.uuid4())
+        checkpoints_dir = self._checkpoints_dir(run_id)
+        checkpoints_dir.mkdir(parents=True, exist_ok=True)
+
+        checkpoint_path = checkpoints_dir / f"{checkpoint_id}.json"
+        checkpoint_data = {
+            "checkpoint_id": checkpoint_id,
+            "run_id": run_id,
+            "label": label,
+            "timestamp": _now_iso(),
+            "state": state,
+        }
+        async with aiofiles.open(checkpoint_path, "w", encoding="utf-8") as f:
+            await f.write(json.dumps(checkpoint_data, indent=2))
+
+        await self.append_event_async(run_id, "checkpoint_created", {
+            "checkpoint_id": checkpoint_id,
+            "label": label,
+        })
+
+        return checkpoint_id
+
+    # ------------------------------------------------------------------
+    # list_runs
+    # ------------------------------------------------------------------
+
+    def list_runs(self) -> List[Dict[str, Any]]:
+        """
+        List all runs under the runs directory.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            Each entry contains ``run_id``, ``status``, ``created_at``,
+            ``cost``, and ``duration``.
+        """
+        runs: List[Dict[str, Any]] = []
+        if not self.runs_dir.exists():
+            return runs
+
+        for run_path in sorted(self.runs_dir.iterdir()):
+            if not run_path.is_dir():
+                continue
+            run_id = run_path.name
+            try:
+                manifest = self.read_manifest(run_id)
+                runs.append({
+                    "run_id": run_id,
+                    "status": manifest.status.value,
+                    "created_at": manifest.created_at,
+                    "cost": manifest.total_cost_estimate,
+                    "duration": manifest.total_duration_seconds,
+                })
+            except Exception:
+                # Include minimal info for runs without a valid manifest
+                runs.append({
+                    "run_id": run_id,
+                    "status": RunStatus.RUNNING.value,
+                    "created_at": None,
+                    "cost": None,
+                    "duration": None,
+                })
+
+        return runs
+
+    async def list_runs_async(self) -> List[Dict[str, Any]]:
+        """Asynchronous version of :meth:`list_runs`."""
+        runs: List[Dict[str, Any]] = []
+        if not self.runs_dir.exists():
+            return runs
+
+        for run_path in sorted(self.runs_dir.iterdir()):
+            if not run_path.is_dir():
+                continue
+            run_id = run_path.name
+            try:
+                manifest = await self.read_manifest_async(run_id)
+                runs.append({
+                    "run_id": run_id,
+                    "status": manifest.status.value,
+                    "created_at": manifest.created_at,
+                    "cost": manifest.total_cost_estimate,
+                    "duration": manifest.total_duration_seconds,
+                })
+            except Exception:
+                runs.append({
+                    "run_id": run_id,
+                    "status": RunStatus.RUNNING.value,
+                    "created_at": None,
+                    "cost": None,
+                    "duration": None,
+                })
+
+        return runs
+
+    # ------------------------------------------------------------------
+    # Markdown helper
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _packet_to_markdown(packet: WorkerPacket) -> str:
+        """Render a WorkerPacket as human-readable markdown."""
+        lines = [
+            f"# Worker Packet: {packet.worker_id}",
+            "",
+            f"**Run ID**: `{packet.run_id}`",
+            f"**Role**: {packet.role.value}",
+            f"**Depth**: {packet.depth}",
+            f"**Parent Worker**: `{packet.parent_worker_id}`",
+            f"**Created**: {packet.created_at}",
+            "",
+            f"## Objective",
+            packet.objective,
+            "",
+            f"## Task Prompt",
+            packet.task_prompt,
+            "",
+        ]
+        if packet.allowed_tools:
+            lines.append("## Allowed Tools")
+            for tool in packet.allowed_tools:
+                lines.append(f"- `{tool}`")
+            lines.append("")
+
+        if packet.forbidden_tools:
+            lines.append("## Forbidden Tools")
+            for tool in packet.forbidden_tools:
+                lines.append(f"- `{tool}`")
+            lines.append("")
+
+        if packet.owned_paths:
+            lines.append("## Owned Paths")
+            for p in packet.owned_paths:
+                lines.append(f"- `{p}`")
+            lines.append("")
+
+        if packet.forbidden_paths:
+            lines.append("## Forbidden Paths")
+            for p in packet.forbidden_paths:
+                lines.append(f"- `{p}`")
+            lines.append("")
+
+        if packet.timeout is not None:
+            lines.append(f"**Timeout**: {packet.timeout}s")
+
+        if packet.budget is not None:
+            lines.append(f"**Budget**: ${packet.budget:.2f}")
+
+        if packet.result_contract:
+            lines.extend(["", f"## Result Contract", packet.result_contract, ""])
+
+        if packet.no_revert_rule:
+            lines.append("")
+            lines.append("**No-Revert Rule**: enabled")
+
+        if packet.secrets_rule:
+            lines.extend(["", f"## Secrets Rule", packet.secrets_rule, ""])
+
+        if packet.verification_expectations:
+            lines.extend([
+                "",
+                "## Verification Expectations",
+                packet.verification_expectations,
+                "",
+            ])
+
+        delegation = packet.delegation_permission.value
+        lines.append(f"**Delegation Permission**: `{delegation}`")
+        lines.append(f"**Max Child Depth**: {packet.max_child_depth}")
+
+        return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Packet Reader — read side of the protocol
+# ---------------------------------------------------------------------------
+
+
+class PacketReader:
+    """
+    Read side of the file-based worker protocol.
+
+    All read operations are mirrored with async counterparts.
+
+    Parameters
+    ----------
+    runs_dir : Path | str | None
+        Root directory under which run folders live.
+        Defaults to ``runs`` in the current working directory.
+    """
+
+    def __init__(self, runs_dir: Path | str | None = None) -> None:
+        self.runs_dir = Path(runs_dir) if runs_dir else RUNS_DIR
+
+    def _run_dir(self, run_id: str) -> Path:
+        return self.runs_dir / run_id
+
+    def _packets_dir(self, run_id: str) -> Path:
+        return self._run_dir(run_id) / "packets"
+
+    def _results_dir(self, run_id: str) -> Path:
+        return self._run_dir(run_id) / "results"
+
+    def _checkpoints_dir(self, run_id: str) -> Path:
+        return self._run_dir(run_id) / "checkpoints"
+
+    # ------------------------------------------------------------------
+    # read_packet
+    # ------------------------------------------------------------------
+
+    def read_packet(self, run_id: str, worker_id: str) -> WorkerPacket:
+        """
+        Read a WorkerPacket from the packets directory.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+        worker_id : str
+            Worker identifier.
+
+        Returns
+        -------
+        WorkerPacket
+        """
+        path = self._packets_dir(run_id) / f"{worker_id}.json"
+        return WorkerPacket(**json.loads(path.read_text(encoding="utf-8")))
+
+    async def read_packet_async(self, run_id: str, worker_id: str) -> WorkerPacket:
+        """Asynchronous version of :meth:`read_packet`."""
+        path = self._packets_dir(run_id) / f"{worker_id}.json"
+        async with aiofiles.open(path, "r", encoding="utf-8") as f:
+            return WorkerPacket(**json.loads(await f.read()))
+
+    # ------------------------------------------------------------------
+    # read_result
+    # ------------------------------------------------------------------
+
+    def read_result(self, run_id: str, worker_id: str) -> WorkerResult:
+        """
+        Read a WorkerResult from the results directory.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+        worker_id : str
+            Worker identifier.
+
+        Returns
+        -------
+        WorkerResult
+        """
+        path = self._results_dir(run_id) / f"{worker_id}.json"
+        return WorkerResult(**json.loads(path.read_text(encoding="utf-8")))
+
+    async def read_result_async(self, run_id: str, worker_id: str) -> WorkerResult:
+        """Asynchronous version of :meth:`read_result`."""
+        path = self._results_dir(run_id) / f"{worker_id}.json"
+        async with aiofiles.open(path, "r", encoding="utf-8") as f:
+            return WorkerResult(**json.loads(await f.read()))
+
+    # ------------------------------------------------------------------
+    # read_graph_spec
+    # ------------------------------------------------------------------
+
+    def read_graph_spec(self, run_id: str) -> GraphSpec:
+        """
+        Read the GraphSpec for a run.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+
+        Returns
+        -------
+        GraphSpec
+        """
+        path = self._run_dir(run_id) / "graph_spec.json"
+        return GraphSpec(**json.loads(path.read_text(encoding="utf-8")))
+
+    async def read_graph_spec_async(self, run_id: str) -> GraphSpec:
+        """Asynchronous version of :meth:`read_graph_spec`."""
+        path = self._run_dir(run_id) / "graph_spec.json"
+        async with aiofiles.open(path, "r", encoding="utf-8") as f:
+            return GraphSpec(**json.loads(await f.read()))
+
+    # ------------------------------------------------------------------
+    # read_manifest
+    # ------------------------------------------------------------------
+
+    def read_manifest(self, run_id: str) -> RunManifest:
+        """
+        Read the RunManifest for a run.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+
+        Returns
+        -------
+        RunManifest
+        """
+        path = self._run_dir(run_id) / "manifest.json"
+        return RunManifest(**json.loads(path.read_text(encoding="utf-8")))
+
+    async def read_manifest_async(self, run_id: str) -> RunManifest:
+        """Asynchronous version of :meth:`read_manifest`."""
+        path = self._run_dir(run_id) / "manifest.json"
+        async with aiofiles.open(path, "r", encoding="utf-8") as f:
+            return RunManifest(**json.loads(await f.read()))
+
+    # ------------------------------------------------------------------
+    # read_events
+    # ------------------------------------------------------------------
+
+    def read_events(self, run_id: str) -> List[Dict[str, Any]]:
+        """
+        Read all events from the run's JSONL event log.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            List of event objects (one per line).
+        """
+        events_path = self._run_dir(run_id) / "events.jsonl"
+        if not events_path.exists():
+            return []
+
+        events: List[Dict[str, Any]] = []
+        for line in events_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                events.append(json.loads(line))
+        return events
+
+    async def read_events_async(self, run_id: str) -> List[Dict[str, Any]]:
+        """Asynchronous version of :meth:`read_events`."""
+        events_path = self._run_dir(run_id) / "events.jsonl"
+        if not events_path.exists():
+            return []
+
+        events: List[Dict[str, Any]] = []
+        async with aiofiles.open(events_path, "r", encoding="utf-8") as f:
+            content = await f.read()
+        for line in content.splitlines():
+            line = line.strip()
+            if line:
+                events.append(json.loads(line))
+        return events
+
+    # ------------------------------------------------------------------
+    # read_final_md
+    # ------------------------------------------------------------------
+
+    def read_final_md(self, run_id: str) -> str:
+        """
+        Read the final markdown summary for a run.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+
+        Returns
+        -------
+        str
+            Markdown content, or empty string if not yet written.
+        """
+        path = self._run_dir(run_id) / "final.md"
+        return path.read_text(encoding="utf-8") if path.exists() else ""
+
+    async def read_final_md_async(self, run_id: str) -> str:
+        """Asynchronous version of :meth:`read_final_md`."""
+        path = self._run_dir(run_id) / "final.md"
+        if not path.exists():
+            return ""
+        async with aiofiles.open(path, "r", encoding="utf-8") as f:
+            return await f.read()
+
+    # ------------------------------------------------------------------
+    # read_checkpoint
+    # ------------------------------------------------------------------
+
+    def read_checkpoint(self, run_id: str, checkpoint_id: str) -> Dict[str, Any]:
+        """
+        Read a checkpoint by its ID.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+        checkpoint_id : str
+            Checkpoint identifier.
+
+        Returns
+        -------
+        Dict[str, Any]
+            The checkpoint data including the ``state`` key.
+        """
+        path = self._checkpoints_dir(run_id) / f"{checkpoint_id}.json"
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    async def read_checkpoint_async(
+        self, run_id: str, checkpoint_id: str
+    ) -> Dict[str, Any]:
+        """Asynchronous version of :meth:`read_checkpoint`."""
+        path = self._checkpoints_dir(run_id) / f"{checkpoint_id}.json"
+        async with aiofiles.open(path, "r", encoding="utf-8") as f:
+            return json.loads(await f.read())
+
+    # ------------------------------------------------------------------
+    # list_workers
+    # ------------------------------------------------------------------
+
+    def list_workers(self, run_id: str) -> List[str]:
+        """
+        List all worker IDs that have packets in a run.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+
+        Returns
+        -------
+        List[str]
+            Basename list of worker IDs (without .json / .md extensions).
+        """
+        packets_dir = self._packets_dir(run_id)
+        if not packets_dir.exists():
+            return []
+
+        return [
+            p.stem for p in sorted(packets_dir.iterdir()) if p.suffix == ".json"
+        ]
+
+    async def list_workers_async(self, run_id: str) -> List[str]:
+        """Asynchronous version of :meth:`list_workers`."""
+        packets_dir = self._packets_dir(run_id)
+        if not packets_dir.exists():
+            return []
+
+        workers: List[str] = []
+        async for entry in aiofiles.os.iterdir(str(packets_dir)):
+            if entry.endswith(".json"):
+                workers.append(entry[:-5])  # strip .json
+        return sorted(workers)
+
+    # ------------------------------------------------------------------
+    # list_checkpoints
+    # ------------------------------------------------------------------
+
+    def list_checkpoints(self, run_id: str) -> List[Dict[str, str]]:
+        """
+        List all checkpoints for a run.
+
+        Parameters
+        ----------
+        run_id : str
+            Run identifier.
+
+        Returns
+        -------
+        List[Dict[str, str]]
+            Each entry contains ``checkpoint_id``, ``label``, and ``timestamp``.
+        """
+        checkpoints_dir = self._checkpoints_dir(run_id)
+        if not checkpoints_dir.exists():
+            return []
+
+        checkpoints: List[Dict[str, str]] = []
+        for cp_path in sorted(checkpoints_dir.iterdir()):
+            if cp_path.suffix == ".json":
+                data = json.loads(cp_path.read_text(encoding="utf-8"))
+                checkpoints.append({
+                    "checkpoint_id": data.get("checkpoint_id", cp_path.stem),
+                    "label": data.get("label", ""),
+                    "timestamp": data.get("timestamp", ""),
+                })
+        return checkpoints
+
+    async def list_checkpoints_async(self, run_id: str) -> List[Dict[str, str]]:
+        """Asynchronous version of :meth:`list_checkpoints`."""
+        checkpoints_dir = self._checkpoints_dir(run_id)
+        if not checkpoints_dir.exists():
+            return []
+
+        checkpoints: List[Dict[str, str]] = []
+        async for entry in aiofiles.os.iterdir(str(checkpoints_dir)):
+            if entry.endswith(".json"):
+                path = checkpoints_dir / entry
+                async with aiofiles.open(path, "r", encoding="utf-8") as f:
+                    data = json.loads(await f.read())
+                checkpoints.append({
+                    "checkpoint_id": data.get("checkpoint_id", entry[:-5]),
+                    "label": data.get("label", ""),
+                    "timestamp": data.get("timestamp", ""),
+                })
+        return sorted(checkpoints, key=lambda c: c["timestamp"])
+
+
+# ---------------------------------------------------------------------------
+# Packet Builder — factory helpers
+# ---------------------------------------------------------------------------
+
+
+class PacketBuilder:
+    """
+    Factory helpers for constructing :class:`WorkerPacket` and
+    :class:`WorkerResult` objects from graph nodes and run context.
+    """
+
+    @staticmethod
+    def build_packet_from_node(
+        node: GraphNode,
+        run_id: str,
+        parent_worker_id: str | None,
+        depth: int,
+    ) -> WorkerPacket:
+        """
+        Convert a GraphNode into a WorkerPacket for dispatch.
+
+        Parameters
+        ----------
+        node : GraphNode
+            Source node definition.
+        run_id : str
+            Parent run identifier.
+        parent_worker_id : str | None
+            ID of the delegating worker (None for root).
+        depth : int
+            Delegation depth at which this packet will run (0 = root).
+
+        Returns
+        -------
+        WorkerPacket
+            A fully-populated packet ready to be emitted.
+        """
+        return WorkerPacket(
+            run_id=run_id,
+            worker_id=node.node_id,
+            parent_worker_id=parent_worker_id,
+            depth=depth,
+            role=node.role,
+            objective=node.task_prompt,
+            task_prompt=node.task_prompt,
+            allowed_tools=node.allowed_tools,
+            forbidden_tools=node.forbidden_tools,
+            owned_paths=node.owned_paths,
+            forbidden_paths=node.forbidden_paths,
+            timeout=node.timeout,
+            budget=node.budget,
+            delegation_permission=node.delegation_permission,
+            max_child_depth=node.max_child_depth,
+            result_contract=node.result_contract,
+            no_revert_rule=node.no_revert_rule,
+            secrets_rule=node.secrets_rule,
+            verification_expectations=node.verification_expectations,
+            created_at=_now_iso(),
+        )
+
+    @staticmethod
+    def build_result_from_packet(
+        packet: WorkerPacket,
+        status: str,
+        output: Any,
+        **kwargs: Any,
+    ) -> WorkerResult:
+        """
+        Factory to create a WorkerResult from a dispatch packet.
+
+        Parameters
+        ----------
+        packet : WorkerPacket
+            The packet that was dispatched to the worker.
+        status : str
+            Terminal status string (``"success"``, ``"failure"``, etc.).
+        output : Any
+            The worker's output value.
+        **kwargs : Any
+            Additional fields forwarded to the WorkerResult constructor
+            (e.g. ``error``, ``duration_seconds``, ``cost_estimate``,
+            ``children``, ``artifacts``, ``critic_findings``).
+
+        Returns
+        -------
+        WorkerResult
+        """
+        return WorkerResult(
+            run_id=packet.run_id,
+            worker_id=packet.worker_id,
+            parent_worker_id=packet.parent_worker_id,
+            status=WorkerStatus(status),
+            output=output,
+            created_at=packet.created_at,
+            **kwargs,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Child Request — derive constrained child packets from a parent
+# ---------------------------------------------------------------------------
+
+
+class ChildRequest:
+    """
+    Helpers for deriving a constrained child :class:`WorkerPacket` from a
+    parent packet, enforcing the parent's policy constraints in the child.
+    """
+
+    @staticmethod
+    def build_child_request(
+        parent_packet: WorkerPacket,
+        child_role: NodeType,
+        child_objective: str,
+    ) -> WorkerPacket:
+        """
+        Create a child packet whose permissions are a subset of the parent's.
+
+        The child inherits the parent's constraints but with:
+        - ``depth = parent.depth + 1``
+        - ``max_child_depth = max(0, parent.max_child_depth - 1)``
+        - ``allowed_tools = intersection(parent.allowed_tools, profile.tools)``
+        - ``owned_paths = subset of parent.owned_paths``
+        - ``delegation_permission = reduced based on remaining depth``
+
+        Parameters
+        ----------
+        parent_packet : WorkerPacket
+            The packet of the delegating parent worker.
+        child_role : NodeType
+            Role for the child node (e.g. ``NodeType.WORKER``).
+        child_objective : str
+            Narrowed objective description for the child.
+
+        Returns
+        -------
+        WorkerPacket
+            A constrained child packet.
+        """
+        remaining_depth = max(0, parent_packet.max_child_depth - 1)
+
+        # Determine delegation permission based on remaining depth
+        if remaining_depth == 0:
+            delegation = DelegationPermission.NONE
+        elif parent_packet.delegation_permission == DelegationPermission.APPROVE:
+            delegation = DelegationPermission.APPROVE
+        else:
+            delegation = DelegationPermission.REQUEST
+
+        # If parent had no delegation, child inherits that
+        if parent_packet.delegation_permission == DelegationPermission.NONE:
+            delegation = DelegationPermission.NONE
+
+        return WorkerPacket(
+            run_id=parent_packet.run_id,
+            worker_id=str(uuid.uuid4()),
+            parent_worker_id=parent_packet.worker_id,
+            depth=parent_packet.depth + 1,
+            role=child_role,
+            objective=child_objective,
+            task_prompt=child_objective,
+            allowed_tools=parent_packet.allowed_tools,
+            forbidden_tools=parent_packet.forbidden_tools,
+            owned_paths=parent_packet.owned_paths,
+            forbidden_paths=parent_packet.forbidden_paths,
+            timeout=parent_packet.timeout,
+            budget=parent_packet.budget,
+            delegation_permission=delegation,
+            max_child_depth=remaining_depth,
+            result_contract=parent_packet.result_contract,
+            no_revert_rule=parent_packet.no_revert_rule,
+            secrets_rule=parent_packet.secrets_rule,
+            verification_expectations=parent_packet.verification_expectations,
+            created_at=_now_iso(),
+        )

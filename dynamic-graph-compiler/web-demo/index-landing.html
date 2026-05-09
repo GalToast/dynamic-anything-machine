@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DynamicAnythingMachine — Multi-Agent Orchestration Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%230d0f12' width='100' height='100' rx='20'/><circle cx='50' cy='50' r='25' fill='none' stroke='%2300d4ff' stroke-width='4'/><circle cx='50' cy='50' r='8' fill='%23ff6b35'/></svg>">
+    <style>
+        /* ============================================================
+           CSS Variables — LangGraph Observatory Theme
+           ============================================================ */
+        :root {
+            --bg-deep:        #0d0f12;
+            --bg-primary:     #111318;
+            --bg-secondary:   #161a21;
+            --bg-tertiary:    #1c212a;
+            --bg-elevated:    #232830;
+            --border-subtle:  #2a3040;
+            --border-default: #363f52;
+            --border-bright:  #4a5570;
+            --text-muted:     #5a6478;
+            --text-secondary: #8892a4;
+            --text-primary:   #c8d0e0;
+            --text-bright:    #e8ecf4;
+            --accent:         #00d4ff;
+            --accent-dim:     #0099bb;
+            --accent-glow:    rgba(0, 212, 255, 0.15);
+            --accent-orange:  #ff6b35;
+            --status-manager: #ffb830;
+            --status-worker:  #00d4ff;
+            --status-active:  #00ff88;
+            --status-synthesis: #b57bff;
+            --font-mono:      'JetBrains Mono', 'Fira Code', monospace;
+            --font-ui:        'Inter', -apple-system, sans-serif;
+            --radius-sm:  4px;
+            --radius-md:  8px;
+            --radius-lg:  12px;
+            --radius-xl:  20px;
+            --shadow-glow:  0 0 40px rgba(0, 212, 255, 0.12);
+            --shadow-card:   0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        /* ============================================================
+           Reset & Base
+           ============================================================ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; scroll-behavior: smooth; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+        ::selection { background: var(--accent); color: var(--bg-deep); }
+
+        /* ============================================================
+           Layout
+           ============================================================ */
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+        /* ============================================================
+           Hero Section
+           ============================================================ */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 80px 24px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            border-radius: 100px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--accent);
+            margin-bottom: 32px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .hero-badge-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--status-active);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.3); }
+        }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 800;
+            color: var(--text-bright);
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+            margin-bottom: 24px;
+        }
+        .hero h1 .accent { color: var(--accent); }
+        .hero h1 .orange { color: var(--accent-orange); }
+        .hero-tagline {
+            font-size: clamp(1.1rem, 2.5vw, 1.35rem);
+            color: var(--text-secondary);
+            max-width: 640px;
+            margin-bottom: 48px;
+            font-weight: 400;
+        }
+        .hero-cta {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 32px;
+            background: var(--accent);
+            color: var(--bg-deep);
+            font-family: var(--font-ui);
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-primary:hover {
+            background: var(--text-bright);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 212, 255, 0.3);
+        }
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 32px;
+            background: transparent;
+            color: var(--text-primary);
+            font-family: var(--font-ui);
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            border: 1px solid var(--border-default);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .btn-secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* ============================================================
+           What It Does — Animated Demo Flow
+           ============================================================ */
+        .demo-section {
+            padding: 100px 0;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .section-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent);
+            margin-bottom: 16px;
+        }
+        .section-title {
+            font-size: clamp(1.8rem, 4vw, 2.5rem);
+            font-weight: 700;
+            color: var(--text-bright);
+            margin-bottom: 16px;
+            letter-spacing: -0.02em;
+        }
+        .section-subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 560px;
+        }
+        .demo-showcase {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 48px;
+            align-items: center;
+            margin-top: 64px;
+        }
+        @media (max-width: 800px) {
+            .demo-showcase { grid-template-columns: 1fr; }
+        }
+
+        /* Demo input/output cards */
+        .demo-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+        .demo-card-header {
+            padding: 12px 20px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .demo-card-body { padding: 24px; }
+        .demo-input-text {
+            font-size: 1rem;
+            color: var(--text-primary);
+            font-style: italic;
+        }
+        .demo-output-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            font-family: var(--font-mono);
+        }
+        .demo-output-preview {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            font-size: 13px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            max-height: 180px;
+            overflow: hidden;
+            position: relative;
+        }
+        .demo-output-preview::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: linear-gradient(transparent, var(--bg-tertiary));
+        }
+        .demo-output-stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-subtle);
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .demo-output-stat .num {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        /* Animated flow diagram */
+        .flow-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .flow-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+        }
+        .flow-node {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-md);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .flow-node-orchestrator {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, var(--accent-orange), #ff8f35);
+            color: var(--bg-deep);
+            border-radius: 50%;
+            box-shadow: 0 0 30px rgba(255, 107, 53, 0.4);
+        }
+        .flow-node-manager {
+            width: 70px;
+            height: 70px;
+            background: var(--bg-elevated);
+            border: 2px solid var(--status-manager);
+            color: var(--status-manager);
+        }
+        .flow-node-worker {
+            width: 48px;
+            height: 48px;
+            background: var(--bg-secondary);
+            border: 2px solid var(--accent);
+            color: var(--accent);
+            font-size: 10px;
+        }
+        .flow-node-synthesis {
+            width: 90px;
+            height: 90px;
+            background: linear-gradient(135deg, var(--status-synthesis), #d4a0ff);
+            color: var(--bg-deep);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 0 30px rgba(181, 123, 255, 0.3);
+        }
+        .flow-arrow {
+            color: var(--border-bright);
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .flow-arrow.animate { animation: flowPulse 1.5s ease-in-out infinite; }
+        @keyframes flowPulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; color: var(--accent); }
+        }
+        .flow-managers {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+        .flow-workers {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 200px;
+        }
+        .flow-label {
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            font-family: var(--font-mono);
+        }
+
+        /* ============================================================
+           Modes Section
+           ============================================================ */
+        .modes-section {
+            padding: 100px 0;
+            border-top: 1px solid var(--border-subtle);
+        }
+        .modes-intro {
+            max-width: 600px;
+            margin-bottom: 48px;
+        }
+        .modes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+        .mode-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            transition: all 0.25s ease;
+            cursor: default;
+        }
+        .mode-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-3px);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+        .mode-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .mode-card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        .mode-card-research .mode-card-icon { background: rgba(0, 212, 255, 0.15); color: var(--accent); }
+        .mode-card-build .mode-card-icon   { background: rgba(255, 107, 53, 0.15); color: var(--accent-orange); }
+        .mode-card-analyze .mode-card-icon { background: rgba(181, 123, 255, 0.15); color: var(--status-synthesis); }
+        .mode-card-plan .mode-card-icon    { background: rgba(255, 184, 48, 0.15); color: var(--status-manager); }
+        .mode-card-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-bright);
+        }
+        .mode-card-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .mode-tag {
+            padding: 4px 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 100px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* ============================================================
+           Any-Domain Showcase
+           ============================================================ */
+        .any-domain-section {
+            padding: 80px 0;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .domain-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-top: 48px;
+        }
+        .domain-item {
+            padding: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            text-align: center;
+            font-size: 14px;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+        }
+        .domain-item:hover {
+            border-color: var(--border-bright);
+            color: var(--text-primary);
+        }
+        .domain-item strong { display: block; color: var(--text-bright); margin-bottom: 4px; }
+
+        /* ============================================================
+           Architecture Section
+           ============================================================ */
+        .architecture-section {
+            padding: 100px 0;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 24px;
+            margin-top: 64px;
+        }
+        .feature-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent), transparent);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+        .feature-card:hover {
+            border-color: var(--border-default);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-card);
+        }
+        .feature-card:hover::before { opacity: 1; }
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+        }
+        .feature-icon svg { width: 24px; height: 24px; stroke: var(--accent); fill: none; }
+        .feature-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-bright);
+            margin-bottom: 8px;
+        }
+        .feature-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* ============================================================
+           Metrics Bar
+           ============================================================ */
+        .metrics-bar {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 48px 0;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 32px;
+            text-align: center;
+        }
+        .metric-item {}
+        .metric-value {
+            font-family: var(--font-mono);
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent);
+            line-height: 1.1;
+        }
+        .metric-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .metric-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            font-family: var(--font-mono);
+        }
+
+        /* ============================================================
+           Code Snippet
+           ============================================================ */
+        .code-section {
+            padding: 100px 0;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border-subtle);
+        }
+        .code-showcase {
+            margin-top: 48px;
+            position: relative;
+        }
+        .code-window {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            max-width: 700px;
+        }
+        .code-window-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .code-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .code-dot-red { background: #ff5f57; }
+        .code-dot-yellow { background: #febc2e; }
+        .code-dot-green { background: #28c840; }
+        .code-window-body {
+            padding: 28px 32px;
+            font-family: var(--font-mono);
+            font-size: 15px;
+            line-height: 1.8;
+        }
+        .code-line { display: block; }
+        .code-line-comment { color: var(--text-muted); }
+        .code-line-code { color: var(--text-primary); }
+        .code-highlight { color: var(--accent); font-weight: 600; }
+        .code-string { color: var(--status-manager); }
+        .code-result {
+            margin-top: 24px;
+            padding: 20px 24px;
+            background: var(--bg-tertiary);
+            border-left: 3px solid var(--accent);
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .code-result-icon { color: var(--status-active); font-size: 18px; }
+        .code-result-text strong { color: var(--text-bright); }
+
+        /* ============================================================
+           Live Demo CTA
+           ============================================================ */
+        .live-demo-section {
+            padding: 100px 0;
+            text-align: center;
+        }
+        .live-demo-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-xl);
+            padding: 64px 48px;
+            position: relative;
+            overflow: hidden;
+        }
+        .live-demo-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-orange), var(--accent), var(--status-synthesis));
+        }
+        .live-demo-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-bright);
+            margin-bottom: 16px;
+        }
+        .live-demo-desc {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+
+        /* ============================================================
+           Footer
+           ============================================================ */
+        .footer {
+            border-top: 1px solid var(--border-subtle);
+            padding: 40px 0;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .footer a { color: var(--accent); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+         Hero
+         ============================================================ -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-badge">
+                <span class="hero-badge-dot"></span>
+                Multi-Agent Orchestration
+            </div>
+            <h1>
+                The <span class="accent">Dynamic Anything</span><br>
+                <span class="orange">Machine</span>
+            </h1>
+            <p class="hero-tagline">
+                Tell it to do anything. It plans, coordinates, and executes.
+            </p>
+            <div class="hero-cta">
+                <a href="#live-demo" class="btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polygon points="5,3 19,12 5,21"/>
+                    </svg>
+                    Try It Live
+                </a>
+                <a href="#architecture" class="btn-secondary">
+                    See How It Works
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================
+         What It Does — Animated Demo
+         ============================================================ -->
+    <section class="demo-section" id="what-it-does">
+        <div class="container">
+            <span class="section-label">How It Works</span>
+            <h2 class="section-title">Any goal. Any domain. One call.</h2>
+            <p class="section-subtitle">
+                The orchestrator reads your goal, decomposes it into specialized sub-tasks,
+                spins up a team of AI workers, and synthesizes their output — all in real-time.
+            </p>
+
+            <div class="demo-showcase">
+                <!-- Left: Input / Output cards -->
+                <div>
+                    <div class="demo-card" style="margin-bottom: 24px;">
+                        <div class="demo-card-header">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                            </svg>
+                            Goal
+                        </div>
+                        <div class="demo-card-body">
+                            <p class="demo-input-text">
+                                "Build a web scraper that collects pricing data from competitor sites"
+                            </p>
+                        </div>
+                    </div>
+                    <div class="demo-card">
+                        <div class="demo-card-header">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                                <polyline points="14,2 14,8 20,8"/>
+                            </svg>
+                            Result
+                        </div>
+                        <div class="demo-card-body">
+                            <div class="demo-output-meta">build · 18 workers · 7 iterations</div>
+                            <div class="demo-output-preview">
+                                <strong style="color: var(--text-primary); display: block; margin-bottom: 8px;">Web Scraper — Pricing Intelligence System</strong>
+                                <strong style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 8px;">FILE: scraper.py</strong>
+                                import requests<br>
+                                from bs4 import BeautifulSoup<br>
+                                import pandas as pd<br>
+                                # ... full implementation with rate limiting, error handling
+                                <br><br>
+                                <strong style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 8px;">FILE: competitor_tracker.py</strong>
+                                class CompetitorTracker:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;def __init__(self, urls):<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.urls = urls<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.prices = {}<br>
+                                <br><br>
+                                <strong style="color: var(--text-muted); font-size: 11px; display: block;">OUTPUT: prices.csv — 1,247 rows synced</strong>
+                            </div>
+                            <div class="demo-output-stat">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
+                                </svg>
+                                <span>Generated by</span>
+                                <span class="num">18 parallel workers</span>
+                                <span>— 6 files created</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Animated flow diagram -->
+                <div>
+                    <div class="flow-diagram">
+                        <!-- Goal in -->
+                        <div class="flow-row" style="margin-bottom: 16px;">
+                            <div class="flow-node flow-node-orchestrator" style="width: 120px; height: 80px; border-radius: 12px;">
+                                <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px;">Goal</span>
+                            </div>
+                        </div>
+                        <div class="flow-row" style="margin-bottom: 4px;">
+                            <svg class="flow-arrow animate" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                        </div>
+                        <div class="flow-row" style="margin-bottom: 4px;">
+                            <div class="flow-node flow-node-orchestrator" style="margin-bottom: 8px;">
+                                <span style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;">Orchestrator</span>
+                            </div>
+                        </div>
+                        <div class="flow-row" style="margin-bottom: 4px;">
+                            <div class="flow-label">Analyzes goal, plans seams</div>
+                        </div>
+                        <div class="flow-row" style="margin-bottom: 4px;">
+                            <svg class="flow-arrow animate" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                        </div>
+                        <!-- Managers -->
+                        <div class="flow-row" style="margin-bottom: 8px;">
+                            <div class="flow-managers">
+                                <div class="flow-node flow-node-manager">M1</div>
+                                <div class="flow-node flow-node-manager">M2</div>
+                                <div class="flow-node flow-node-manager">M3</div>
+                                <div class="flow-node flow-node-manager">M4</div>
+                                <div class="flow-node flow-node-manager">M5</div>
+                                <div class="flow-node flow-node-manager">M6</div>
+                            </div>
+                        </div>
+                        <div class="flow-row" style="margin-bottom: 8px;">
+                            <div class="flow-label">6 Manager nodes — each supervising a seam of workers</div>
+                        </div>
+                        <div class="flow-row" style="margin-bottom: 4px;">
+                            <svg class="flow-arrow animate" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                        </div>
+                        <!-- Workers -->
+                        <div class="flow-row" style="margin-bottom: 12px;">
+                            <div class="flow-workers">
+                                <div class="flow-node flow-node-worker">W1</div>
+                                <div class="flow-node flow-node-worker">W2</div>
+                                <div class="flow-node flow-node-worker">W3</div>
+                                <div class="flow-node flow-node-worker">W4</div>
+                                <div class="flow-node flow-node-worker">W5</div>
+                                <div class="flow-node flow-node-worker">W6</div>
+                                <div class="flow-node flow-node-worker">W7</div>
+                                <div class="flow-node flow-node-worker">W8</div>
+                                <div class="flow-node flow-node-worker">W9</div>
+                                <div class="flow-node flow-node-worker">W10</div>
+                                <div class="flow-node flow-node-worker">W11</div>
+                                <div class="flow-node flow-node-worker">W12</div>
+                                <div class="flow-node flow-node-worker">W13</div>
+                                <div class="flow-node flow-node-worker">W14</div>
+                                <div class="flow-node flow-node-worker">W15</div>
+                                <div class="flow-node flow-node-worker">W16</div>
+                                <div class="flow-node flow-node-worker">W17</div>
+                                <div class="flow-node flow-node-worker">W18</div>
+                            </div>
+                        </div>
+                        <div class="flow-row" style="margin-bottom: 8px;">
+                            <div class="flow-label">18 Worker nodes — executing in parallel</div>
+                        </div>
+                        <div class="flow-row" style="margin-bottom: 4px;">
+                            <svg class="flow-arrow animate" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                        </div>
+                        <!-- Synthesis -->
+                        <div class="flow-row">
+                            <div class="flow-node flow-node-synthesis">
+                                <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Synthesis</span>
+                            </div>
+                        </div>
+                        <div class="flow-row">
+                            <div class="flow-label">Final report compiled and streamed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================
+         Modes Section
+         ============================================================ -->
+    <section class="modes-section" id="modes">
+        <div class="container">
+            <span class="section-label">Execution Modes</span>
+            <h2 class="section-title">Choose how the machine approaches your goal</h2>
+            <p class="section-subtitle modes-intro">
+                The MODE flag tells the orchestrator what kind of output you want.
+                Each mode triggers a different graph structure and synthesis strategy.
+            </p>
+
+            <div class="modes-grid">
+                <div class="mode-card mode-card-research">
+                    <div class="mode-card-header">
+                        <div class="mode-card-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+                            </svg>
+                        </div>
+                        <div class="mode-card-title">Research</div>
+                    </div>
+                    <div class="mode-card-tags">
+                        <span class="mode-tag">Survey</span>
+                        <span class="mode-tag">Analyze</span>
+                        <span class="mode-tag">Compare</span>
+                        <span class="mode-tag">Synthesize</span>
+                    </div>
+                </div>
+                <div class="mode-card mode-card-build">
+                    <div class="mode-card-header">
+                        <div class="mode-card-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="16,18 22,12 16,6"/><polyline points="8,6 2,12 8,18"/>
+                            </svg>
+                        </div>
+                        <div class="mode-card-title">Build</div>
+                    </div>
+                    <div class="mode-card-tags">
+                        <span class="mode-tag">Write Code</span>
+                        <span class="mode-tag">Create Files</span>
+                        <span class="mode-tag">Implement</span>
+                        <span class="mode-tag">Test</span>
+                    </div>
+                </div>
+                <div class="mode-card mode-card-analyze">
+                    <div class="mode-card-header">
+                        <div class="mode-card-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </div>
+                        <div class="mode-card-title">Analyze</div>
+                    </div>
+                    <div class="mode-card-tags">
+                        <span class="mode-tag">Deep Dive</span>
+                        <span class="mode-tag">Audit</span>
+                        <span class="mode-tag">Inspect</span>
+                        <span class="mode-tag">Report</span>
+                    </div>
+                </div>
+                <div class="mode-card mode-card-plan">
+                    <div class="mode-card-header">
+                        <div class="mode-card-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/>
+                            </svg>
+                        </div>
+                        <div class="mode-card-title">Plan</div>
+                    </div>
+                    <div class="mode-card-tags">
+                        <span class="mode-tag">Roadmap</span>
+                        <span class="mode-tag">Spec</span>
+                        <span class="mode-tag">Architect</span>
+                        <span class="mode-tag">Design</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================
+         Any-Domain Showcase
+         ============================================================ -->
+    <section class="any-domain-section">
+        <div class="container">
+            <span class="section-label">Universal Input</span>
+            <h2 class="section-title">Any domain. Any task. The machine adapts.</h2>
+            <p class="section-subtitle">
+                Because MiniMax M2.7 interprets the goal and the orchestrator plans seams dynamically —
+                the system handles any domain where ReadFile / WriteFile / Bash / Glob / Grep / WebSearch can accomplish the work.
+            </p>
+
+            <div class="domain-grid">
+                <div class="domain-item"><strong>Research</strong>Competitive landscape analysis</div>
+                <div class="domain-item"><strong>Build</strong>REST API from a spec</div>
+                <div class="domain-item"><strong>Analyze</strong>Codebase architecture</div>
+                <div class="domain-item"><strong>Plan</strong>Marketing campaign</div>
+                <div class="domain-item"><strong>Research</strong>Scientific literature review</div>
+                <div class="domain-item"><strong>Build</strong>Web scraper &amp; data pipeline</div>
+                <div class="domain-item"><strong>Design</strong>Database schema</div>
+                <div class="domain-item"><strong>Analyze</strong>Financial report trends</div>
+                <div class="domain-item"><strong>Plan</strong>Product roadmap</div>
+                <div class="domain-item"><strong>Build</strong>CI/CD pipeline setup</div>
+                <div class="domain-item"><strong>Research</strong>Patent landscape</div>
+                <div class="domain-item"><strong>Analyze</strong>Security audit</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================
+         Metrics Bar
+         ============================================================ -->
+    <section class="metrics-bar">
+        <div class="container">
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <div class="metric-value">28</div>
+                    <div class="metric-label">Nodes</div>
+                    <div class="metric-sub">1 orchestrator · 6 managers · 18 workers · 3 synthesis</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">6</div>
+                    <div class="metric-label">Seams</div>
+                    <div class="metric-sub">Parallel execution boundaries</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">18</div>
+                    <div class="metric-label">Workers</div>
+                    <div class="metric-sub">Specialized parallel agents</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">7</div>
+                    <div class="metric-label">Iterations</div>
+                    <div class="metric-sub">Streaming synthesis passes</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">6,357</div>
+                    <div class="metric-label">Chars Synthesized</div>
+                    <div class="metric-sub">From parallel execution</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">197</div>
+                    <div class="metric-label">Passing Tests</div>
+                    <div class="metric-sub">Checkpoint-based fault tolerance</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================
+         Architecture Section
+         ============================================================ -->
+    <section class="architecture-section" id="architecture">
+        <div class="container">
+            <span class="section-label">Architecture</span>
+            <h2 class="section-title">Built for real-world AI workloads</h2>
+            <p class="section-subtitle">
+                A streaming graph executor that orchestrates dozens of LLM calls
+                with fault tolerance and provider flexibility.
+            </p>
+
+            <div class="features-grid">
+                <!-- Feature 1 -->
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" stroke-width="1.5">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                        </svg>
+                    </div>
+                    <div class="feature-title">Two-Phase Execution</div>
+                    <div class="feature-desc">
+                        Analysis phase builds the execution graph, then execution
+                        phase streams results — with checkpointing at every seam.
+                    </div>
+                </div>
+                <!-- Feature 2 -->
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                        </svg>
+                    </div>
+                    <div class="feature-title">28-Node Streaming Graph</div>
+                    <div class="feature-desc">
+                        Dynamically constructed graph with 28 nodes — orchestrator,
+                        managers, workers, and synthesis — all communicating via streaming.
+                    </div>
+                </div>
+                <!-- Feature 3 -->
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" stroke-width="1.5">
+                            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                            <polyline points="3.27,6.96 12,12.01 20.73,6.96"/>
+                            <line x1="12" y1="22.08" x2="12" y2="12"/>
+                        </svg>
+                    </div>
+                    <div class="feature-title">Real LLM Tool Calls</div>
+                    <div class="feature-desc">
+                        Powered by MiniMax M2.7 — every node makes actual LLM API calls
+                        with structured output parsing and tool result handling.
+                    </div>
+                </div>
+                <!-- Feature 4 -->
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" stroke-width="1.5">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </div>
+                    <div class="feature-title">Checkpoint Fault Tolerance</div>
+                    <div class="feature-desc">
+                        Every seam boundary is a checkpoint. On failure, the graph
+                        resumes from the last successful node — no work is lost.
+                    </div>
+                </div>
+                <!-- Feature 5 -->
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" stroke-width="1.5">
+                            <path d="M4 14.899A7 7 0 1115.71 8h1.79a4.5 4.5 0 012.738 8.242"/>
+                            <path d="M12 12v9"/>
+                            <path d="M8 17l4-5 4 5"/>
+                        </svg>
+                    </div>
+                    <div class="feature-title">Free-Provider Fallback</div>
+                    <div class="feature-desc">
+                        Automatically falls back between MiniMax, Groq, OpenRouter,
+                        and NVIDIA endpoints — ensuring execution even under rate limits.
+                    </div>
+                </div>
+                <!-- Feature 6 -->
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" stroke-width="1.5">
+                            <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
+                        </svg>
+                    </div>
+                    <div class="feature-title">Real-Time Streaming</div>
+                    <div class="feature-desc">
+                        Token-by-token streaming output as workers complete.
+                        Watch the graph light up node by node during execution.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================
+         Code Snippet
+         ============================================================ -->
+    <section class="code-section" id="code">
+        <div class="container">
+            <span class="section-label">The Innovation</span>
+            <h2 class="section-title">One call. Dozens of agents. Any result.</h2>
+            <p class="section-subtitle">
+                Traditional AI systems require hand-crafted agent definitions for each domain.
+                The Dynamic Anything Machine builds the graph dynamically from a single goal string.
+            </p>
+
+            <div class="code-showcase">
+                <div class="code-window">
+                    <div class="code-window-bar">
+                        <div class="code-dot code-dot-red"></div>
+                        <div class="code-dot code-dot-yellow"></div>
+                        <div class="code-dot code-dot-green"></div>
+                    </div>
+                    <div class="code-window-body">
+<span class="code-line code-line-comment"># Tell it to do anything — research, build, analyze, design, plan.</span>
+<span class="code-line">
+<span class="code-line-code">result = </span>orchestrator<span class="code-highlight">.execute</span>(
+</span>
+<span class="code-line">    <span class="code-string">"Design a database schema for a SaaS project management tool"</span>
+</span>
+<span class="code-line">)</span>
+<span class="code-line">&nbsp;</span>
+<span class="code-line code-line-comment"># Returns: 6 seams · 18 workers · complete schema + SQL + docs</span>
+                    </div>
+                </div>
+                <div class="code-result">
+                    <span class="code-result-icon">&#10003;</span>
+                    <span class="code-result-text">
+                        <strong>6 seams</strong> planned from analysis &nbsp;&bull;&nbsp;
+                        <strong>18 workers</strong> spawned in parallel &nbsp;&bull;&nbsp;
+                        <strong>Any domain</strong> — research, build, analyze, plan, or design
+                    </span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================
+         Live Demo CTA
+         ============================================================ -->
+    <section class="live-demo-section" id="live-demo">
+        <div class="container">
+            <div class="live-demo-box">
+                <div class="live-demo-title">See it in action</div>
+                <p class="live-demo-desc">
+                    Watch the LangGraph Observatory visualize the orchestration in real-time.<br>
+                    Enter any goal — the graph builds itself and executes.
+                </p>
+                <a href="./index.html" class="btn-primary" style="font-size: 16px; padding: 16px 40px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polygon points="5,3 19,12 5,21"/>
+                    </svg>
+                    Open the LangGraph Observatory
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================
+         Footer
+         ============================================================ -->
+    <footer class="footer">
+        <div class="container">
+            <p>
+                DynamicAnythingMachine &mdash; Multi-Agent Orchestration Engine
+                &nbsp;&bull;&nbsp;
+                Built on <a href="https://github.com/McCullough22/dynamic-graph-compiler">GitHub</a>
+            </p>
+        </div>
+    </footer>
+
+</body>
+</html>
