@@ -6,8 +6,9 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
-    { name = "Fred", email = "fred@example.com" }
+    { name = "Fred McCullough" }
 ]
+urls = { Repository = "https://github.com/GalToast/dynamic-anything-machine" }
 keywords = ["agent", "graph", "compiler", "workflow", "policy", "langgraph"]
 classifiers = [
     "Development Status :: 3 - Alpha",

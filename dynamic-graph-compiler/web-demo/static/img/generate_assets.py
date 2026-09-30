@@ -3,6 +3,11 @@
 Generate demo assets for DynamicAnythingMachine:
 - OG Image (1200x630)
 - Demo screenshots (workflow, output, landing)
+
+NOTE: These are PIL-generated MOCKUPS / illustrative renders, not real
+captures of the running app. The mockup-*.png files in this directory are
+design mockups for the landing page and social preview; they are not
+referenced by the web demo itself.
 """
 
 from PIL import Image, ImageDraw, ImageFont

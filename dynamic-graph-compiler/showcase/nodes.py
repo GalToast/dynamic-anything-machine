@@ -2,15 +2,18 @@
 Node functions for the Recursive Research Orchestra LangGraph showcase.
 
 Architecture:
-- orchestrator_node_fn: Analyzes goal, spawns ManagerNodes at runtime via root_builder
+- orchestrator_node_fn: EXPERIMENTAL and UNUSED by the showcase — a sketch
+  of spawning ManagerNodes at runtime via root_builder (not wired into
+  DynamicOrchestrator; all real graphs add nodes before compile())
 - manager_node_fn: Coordinates workers for a specific seam
 - worker_node_fn: Executes atomic tasks, reports back to manager
 - synthesis_node_fn: Aggregates all findings into final output
 - router_node_fn: Conditional routing based on state
 - human_gate_node_fn: Suspends execution awaiting CLI approval
 
-Key innovation: OrchestratorNode calls root_builder.add_node() from INSIDE its
-node function (before compile()) to dynamically add ManagerNodes and WorkerNodes.
+Note: the runtime-mutation sketch in orchestrator_node_fn is experimental and
+unused — the real orchestrator adds all ManagerNodes and WorkerNodes before
+compile().
 """
 
 from __future__ import annotations
@@ -210,7 +213,7 @@ def orchestrator_phase1_fn(
 
 
 # ---------------------------------------------------------------------------
-# orchestrator_node_fn — Dynamic Graph Mutation at Runtime!
+# orchestrator_node_fn — experimental runtime-mutation sketch (UNUSED)
 # ---------------------------------------------------------------------------
 
 
@@ -222,8 +225,15 @@ def orchestrator_node_fn(
     """
     OrchestratorNode: analyzes goal and dynamically spawns ManagerNodes.
 
-    This is the KEY innovation of the showcase: calling root_builder.add_node()
-    from INSIDE a node function to mutate the graph at runtime.
+    NOTE: EXPERIMENTAL / UNUSED — this function is not wired into
+    DynamicOrchestrator or the showcase demo. Both phase graphs in
+    dynamic_orchestrator.py add all nodes before compile(), so the
+    runtime-mutation pattern described below is NOT demonstrated by the
+    showcase. Kept here as a reference sketch only.
+
+    This was intended as the KEY innovation of the showcase: calling
+    root_builder.add_node() from INSIDE a node function to mutate the
+    graph at runtime.
 
     The pattern:
     1. root_builder is stored on CompiledGraph BEFORE compile()

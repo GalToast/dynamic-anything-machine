@@ -2,7 +2,11 @@
 Recursive Research Orchestra — Main Demo Entry Point
 
 A fully dynamic LangGraph multi-agent system demonstrating:
-1. Dynamic graph mutation (add_node from inside a node function at runtime)
+1. Two-phase orchestration: Phase 1 (isolated graph) analyzes the goal and
+   produces a seam plan; Phase 2 pre-builds a fixed graph (orchestrator,
+   router, synthesis, human gate, per-seam managers and workers) and
+   streams it to completion. All add_node calls happen before compile() —
+   the graph topology is fixed once execution starts.
 2. Streaming execution with progressive token output
 3. Checkpointing with MemorySaver for replay
 4. Conditional routing based on dynamic state
@@ -52,7 +56,7 @@ def print_banner():
 |        Recursive Research Orchestra -- LangGraph Dynamic Showcase      |
 |                                                                        |
 |  Demonstrating:                                                         |
-|  * Dynamic graph mutation (add_node from inside a node fn)              |
+|  * Two-phase orchestration (seam plan, then pre-built worker graph)    |
 |  * Streaming execution with progressive token output                    |
 |  * Checkpointing with MemorySaver for replay                            |
 |  * Conditional routing based on dynamic state                           |
