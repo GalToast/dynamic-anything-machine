@@ -36,8 +36,9 @@ Key files:
 
 ```
 pytest tests/test_showcase_e2e.py -v  → 5 passed
-pytest tests/ -x -q                  → 197 passed, 3 skipped
+pytest tests/ -q                   → 195 passed, 5 skipped
 ```
+(verified 2026-09-30 on Python 3.12, pydantic/pytest/langgraph installed)
 
 ## How to Run
 

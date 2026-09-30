@@ -1,5 +1,7 @@
 # DynamicAnythingMachine
 
+[![pytest](https://github.com/GalToast/dynamic-anything-machine/actions/workflows/pytest.yml/badge.svg)](https://github.com/GalToast/dynamic-anything-machine/actions/workflows/pytest.yml)
+
 ## A Production-Grade Dynamic Multi-Agent Orchestration System
 
 ```
