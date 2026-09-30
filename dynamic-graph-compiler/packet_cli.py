@@ -705,10 +705,13 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     print()
     print(F.header("Run Summary"))
+    wr = result["result"]
+    dur = wr.duration_seconds if wr.duration_seconds is not None else 0.0
+    cost = wr.cost_estimate if wr.cost_estimate is not None else 0.0
     print(F.row("run_id", result["run_id"]))
     print(F.row("packet_id", result["packet_id"]))
-    print(F.row("duration", f"{result['result']['duration_seconds']}s"))
-    print(F.row("cost", f"${result['result']['cost_estimate']:.4f}"))
+    print(F.row("duration", f"{dur}s"))
+    print(F.row("cost", f"${cost:.4f}"))
     print(F.row("shapes_discovered", str(len(result["shapes"]))))
 
     return 0

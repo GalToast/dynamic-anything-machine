@@ -206,7 +206,7 @@ class GraphArchitect:
             A complete, validated GraphSpec ready for execution.
         """
         # Use deterministic seed derived from objective + policy name
-        hash_input = int(self.hash_seed(objective, self.policy.name, self._seed), 16)
+        hash_input = int(self.hash_seed(objective, self.policy.profile_name, self._seed), 16)
         rng = random.Random(hash_input)
 
         nodes = self._build_nodes(objective, difficulty, shape, rng)
@@ -227,7 +227,7 @@ class GraphArchitect:
             max_depth=self._max_depth_for_shape(shape),
             metadata={
                 "objective": objective,
-                "policy_name": self.policy.name,
+                "policy_name": self.policy.profile_name,
                 "architect_version": "1.0.0",
             },
         )

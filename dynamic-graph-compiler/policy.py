@@ -118,6 +118,12 @@ class ProfilePolicy(BaseModel):
     allowed_tools: List[str] = Field(
         default_factory=list, description="Static allowlist of tools workers can be granted"
     )
+    allowed_paths: List[str] = Field(
+        default_factory=list, description="Paths nodes built under this profile may own"
+    )
+    forbidden_paths: List[str] = Field(
+        default_factory=list, description="Paths nodes built under this profile must never own"
+    )
     forbidden_tools: List[str] = Field(
         default_factory=list, description="Tools that are never granted"
     )

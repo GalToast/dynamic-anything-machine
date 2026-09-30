@@ -126,8 +126,8 @@ def main() -> None:
     print("Demo complete.")
     mmx_status = mmx_result.status.value if hasattr(mmx_result.status, "value") else mmx_result.status
     qwen_status = qwen_result.status.value if hasattr(qwen_result.status, "value") else qwen_result.status
-    print(f"\nMiniMax — status={mmx_status}, duration={getattr(mmx_result, 'duration_seconds', 0):.3f}s")
-    print(f"Qwen    — status={qwen_status}, duration={getattr(qwen_result, 'duration_seconds', 0):.3f}s")
+    print(f"\nMiniMax — status={mmx_status}, duration={(getattr(mmx_result, 'duration_seconds', None) or 0.0):.3f}s")
+    print(f"Qwen    — status={qwen_status}, duration={(getattr(qwen_result, 'duration_seconds', None) or 0.0):.3f}s")
 
 
 if __name__ == "__main__":

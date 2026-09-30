@@ -460,7 +460,7 @@ def _cmd_start_run(args: argparse.Namespace) -> int:
     manifest = {
         "run_id": run_id,
         "objective": args.objective,
-        "profile_name": profile.name,
+        "profile_name": profile.profile_name,
         "seed": args.seed or spec.seed,
         "difficulty": difficulty.value,
         "shape": shape.value,
@@ -481,7 +481,7 @@ def _cmd_start_run(args: argparse.Namespace) -> int:
         depth=0,
         data={
             "objective": args.objective,
-            "profile": profile.name,
+            "profile": profile.profile_name,
             "difficulty": difficulty.value,
             "shape": shape.value,
             "node_count": len(spec.nodes),
