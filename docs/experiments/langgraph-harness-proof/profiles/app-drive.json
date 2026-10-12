@@ -1,0 +1,73 @@
+{
+  "name": "app-drive",
+  "description": "High-volume but truth-safe AI contract and W2 application drive.",
+  "max_depth": 2,
+  "max_parallel": 4,
+  "lanes": [
+    {
+      "id": "source-scout",
+      "title": "Source Scout",
+      "recommended_harnesses": ["gemini", "qwen", "minimax"],
+      "mode": "readonly",
+      "timeout_seconds": 900,
+      "can_create_child_run": true,
+      "max_child_depth": 1,
+      "owned_paths": ["outreach/", "reports/hiring-readiness/"],
+      "avoid_paths": ["employment/collaboration/workspace/assets/resumes/"],
+      "prompt": "Find current AI automation, RAG, workflow automation, and agentic tooling opportunities that match Fred's real proof surface. Prioritize direct company ATS, Wellfound, LinkedIn filtered roles, and contract marketplaces. Do not submit applications. Return a ranked list with URLs, fit reasons, risk flags, and recommended packet variant.",
+      "deliverable_contract": [
+        "Ranked opportunities with URL and source.",
+        "Fit score from 0-10.",
+        "Risk flags for degree, clearance, stack mismatch, location, or overclaim risk.",
+        "Recommended resume/proof packet."
+      ]
+    },
+    {
+      "id": "packet-builder",
+      "title": "Packet Builder",
+      "recommended_harnesses": ["codex", "claude"],
+      "mode": "edit",
+      "timeout_seconds": 1200,
+      "owned_paths": ["outreach/target-packets/", "outreach/"],
+      "avoid_paths": ["employment/collaboration/workspace/assets/resumes/legacy-not-for-sending/"],
+      "prompt": "Build or update truth-safe application packet material for the highest-fit targets. Use existing proof assets and resume truth guardrails. Keep claims bounded. Do not modify canonical resumes unless explicitly asked.",
+      "deliverable_contract": [
+        "List changed files.",
+        "State which proof assets were used.",
+        "List explicit claims avoided or bounded.",
+        "Include submit gate recommendation."
+      ]
+    },
+    {
+      "id": "critic",
+      "title": "Truth And Risk Critic",
+      "recommended_harnesses": ["claude", "codex"],
+      "mode": "readonly",
+      "timeout_seconds": 900,
+      "owned_paths": ["outreach/", "employment/collaboration/workspace/resume-system/"],
+      "avoid_paths": [],
+      "prompt": "Review planned applications and packet text for overclaims, stale postings, wrong attachment risk, duplicate submissions, hidden form constraints, and mismatch against the resume truth ledger. Lead with blockers and exact file paths.",
+      "deliverable_contract": [
+        "Severity-ordered findings.",
+        "Exact file paths or packet IDs.",
+        "Clear approve/hold verdict per target."
+      ]
+    },
+    {
+      "id": "integrator",
+      "title": "Integrator",
+      "recommended_harnesses": ["codex"],
+      "mode": "readonly",
+      "timeout_seconds": 600,
+      "owned_paths": ["outreach/application-send-log-20260507.md", "outreach/application-pipeline-template-20260507.csv"],
+      "avoid_paths": [],
+      "prompt": "Merge worker outputs into one next-action list. Separate apply-now, approval-needed, and hold/drop targets. Ensure every proposed submit has a log path and evidence path.",
+      "deliverable_contract": [
+        "Apply-now list.",
+        "Approval-needed list.",
+        "Hold/drop list.",
+        "Logging/evidence checklist."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "name": "code-swarm",
+  "description": "Harness-impartial code work planning with implementation, review, and verification lanes.",
+  "max_depth": 2,
+  "max_parallel": 4,
+  "lanes": [
+    {
+      "id": "repo-scout",
+      "title": "Repo Scout",
+      "recommended_harnesses": ["gemini", "qwen"],
+      "mode": "readonly",
+      "timeout_seconds": 600,
+      "can_create_child_run": true,
+      "max_child_depth": 1,
+      "owned_paths": [],
+      "avoid_paths": [],
+      "prompt": "Inspect the codebase for the requested objective. Identify relevant files, local patterns, likely tests, and risks. Do not edit files.",
+      "deliverable_contract": [
+        "Relevant files.",
+        "Implementation seams.",
+        "Recommended tests.",
+        "Risks or blockers."
+      ]
+    },
+    {
+      "id": "implementation",
+      "title": "Implementation Worker",
+      "recommended_harnesses": ["codex", "claude"],
+      "mode": "edit",
+      "timeout_seconds": 1200,
+      "owned_paths": [],
+      "avoid_paths": [],
+      "prompt": "Implement the requested change in a narrowly scoped way. Follow local patterns, avoid unrelated refactors, and do not revert user or peer edits.",
+      "deliverable_contract": [
+        "Changed files.",
+        "Implementation summary.",
+        "Verification commands run.",
+        "Known risks."
+      ]
+    },
+    {
+      "id": "review",
+      "title": "Review Worker",
+      "recommended_harnesses": ["claude", "codex"],
+      "mode": "readonly",
+      "timeout_seconds": 900,
+      "owned_paths": [],
+      "avoid_paths": [],
+      "prompt": "Review the implementation for bugs, regressions, missing tests, and scope creep. Lead with findings and cite file paths.",
+      "deliverable_contract": [
+        "Severity-ordered findings.",
+        "Residual risks.",
+        "Approve/hold verdict."
+      ]
+    },
+    {
+      "id": "verification",
+      "title": "Verification Worker",
+      "recommended_harnesses": ["codex", "gemini"],
+      "mode": "readonly",
+      "timeout_seconds": 900,
+      "owned_paths": [],
+      "avoid_paths": [],
+      "prompt": "Run or define the strongest practical verification for the objective. Prefer existing test commands and focused smoke checks.",
+      "deliverable_contract": [
+        "Commands run.",
+        "Pass/fail output summary.",
+        "Unrun checks and why."
+      ]
+    }
+  ]
+}
